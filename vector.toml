@@ -1,0 +1,85 @@
+# Vector configuration: read flaws.cloud CloudTrail chunks, expand the
+# Records[] envelope, ship to RSigma daemon over OTLP/HTTP.
+#
+# This is the production-shape pipeline. For one-shot benchmarks against the
+# flattened NDJSON corpus, use scripts/replay.sh which runs `rsigma eval`
+# directly and avoids the network/serialization overhead.
+#
+# Usage:
+#   1. Run flatten.sh first to download the dataset (you can skip the jq
+#      flattening step if you only use Vector):
+#        ./scripts/flatten.sh
+#   2. Start the daemon in one shell:
+#        rsigma engine daemon \
+#          --rules rules/sigmahq/ \
+#          --pipeline pipelines/cloudtrail_normalize.yml \
+#          --input http \
+#          --api-addr 127.0.0.1:9090
+#   3. Run Vector in another shell:
+#        vector --config vector.toml
+
+[sources.flaws_cloud]
+type = "file"
+include = ["data/flaws_cloudtrail_logs/*.json.gz"]
+read_from = "beginning"
+# Each gz file decompresses to a single JSON object that may span many lines
+# of pretty-printed text. Concatenate the whole file into one event so the
+# downstream remap can parse the {Records:[...]} envelope as JSON.
+multiline.start_pattern = '^\{'
+multiline.mode = "halt_before"
+multiline.condition_pattern = '^\Z'
+multiline.timeout_ms = 10000
+
+[transforms.parse_envelope]
+type = "remap"
+inputs = ["flaws_cloud"]
+source = '''
+    parsed, err = parse_json(.message)
+    if err != null {
+      log("parse_json failed: " + err, level: "error")
+      abort
+    }
+    .records = parsed.Records
+'''
+
+# Vector has no built-in array fan-out before 0.41. The cleanest production
+# alternative is to use Vector's `aws_s3` source if the gz files live in S3
+# (which auto-fans the Records[] array), or to pre-flatten with jq via
+# scripts/flatten.sh and use a `file` source on the resulting NDJSON.
+#
+# For local file sources, fan out via the experimental `expand_array` lua
+# transform shown below. Adjust to your Vector version.
+
+[transforms.fan_out]
+type = "lua"
+inputs = ["parse_envelope"]
+version = "2"
+source = '''
+function process(event, emit)
+  local records = event.log.records
+  if records == nil then return end
+  for _, record in ipairs(records) do
+    emit({log = record})
+  end
+end
+'''
+hooks.process = "process"
+
+[sinks.rsigma]
+type = "http"
+inputs = ["fan_out"]
+uri = "http://127.0.0.1:9090/api/v1/events"
+method = "post"
+encoding.codec = "json"
+framing.method = "newline_delimited"
+compression = "gzip"
+batch.max_events = 1000
+
+# Optional: for OTLP/HTTP instead of plain NDJSON, swap the sink for:
+# [sinks.rsigma_otlp]
+# type = "opentelemetry"
+# inputs = ["fan_out"]
+# protocol.type = "http"
+# protocol.uri = "http://127.0.0.1:9090/v1/logs"
+# protocol.encoding.codec = "json"
+# protocol.compression = "gzip"

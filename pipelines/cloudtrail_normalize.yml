@@ -1,0 +1,21 @@
+name: cloudtrail_normalize
+priority: 10
+# Minimal CloudTrail normalization pipeline. Most SigmaHQ AWS CloudTrail rules
+# use the native CloudTrail field names (eventName, eventSource, userIdentity.*),
+# so this pipeline is intentionally short. It adds:
+#  - a logsource filter so this pipeline only applies to AWS CloudTrail rules
+#  - a no-op transformation that documents the schema we expect
+#
+# Extend this file with field_name_mapping or set_state transformations if
+# your CloudTrail flow uses non-standard field names (e.g. when ingested
+# through a SIEM that renames fields).
+
+transformations:
+  - id: cloudtrail_logsource_pin
+    type: set_state
+    key: pipeline
+    val: cloudtrail_normalize
+    rule_conditions:
+      - type: logsource
+        product: aws
+        service: cloudtrail

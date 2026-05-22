@@ -1,0 +1,5 @@
+data/
+results/
+*.ndjson
+*.tar
+.DS_Store

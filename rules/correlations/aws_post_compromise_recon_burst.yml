@@ -1,0 +1,55 @@
+# Correlation: post-compromise reconnaissance burst.
+#
+# Models the pattern surfaced in the article's findings section: an attacker
+# with stolen IMDS credentials (or any IAM principal) running a fast burst of
+# Describe* calls across multiple AWS services within a short window. The
+# 2020-06-09 IMDS abuse incident in flaws.cloud fits this pattern exactly.
+title: AWS Post-Compromise Reconnaissance Burst
+id: 504e43cb-8694-49d3-ad46-fa23d8912db1
+status: experimental
+description: |
+    Detects a burst of distinct Describe* API calls from a single principal
+    within a short window. Typical of post-compromise enumeration when an
+    attacker is mapping out an environment using stolen credentials.
+author: Mostafa Moradian
+date: 2026-05-22
+references:
+    - https://github.com/easttimor/aws-incident-response#general-iam-investigation
+    - https://www.capitalone.com/digital/facts2019/
+correlation:
+    type: event_count
+    rules:
+        - aws_describe_apicall
+    group-by:
+        - userIdentity.principalId
+        - sourceIPAddress
+    timespan: 2m
+    condition:
+        gte: 25
+level: high
+falsepositives:
+    - Legitimate audit tooling running periodic discovery (CloudMapper, Prowler, ScoutSuite, Steampipe)
+    - Cloud configuration backup jobs
+tags:
+    - attack.discovery
+    - attack.t1526
+    - attack.ta0007
+---
+title: AWS Describe API Call (correlation feeder)
+name: aws_describe_apicall
+id: 5be2033d-3cb2-4cc8-b337-804d705ca094
+status: experimental
+description: |
+    Generic feeder rule for the Post-Compromise Reconnaissance Burst
+    correlation. Matches any Describe* call so the correlation engine can
+    count distinct events per principal within a sliding window.
+author: Mostafa Moradian
+date: 2026-05-22
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventName|startswith: 'Describe'
+    condition: selection
+level: informational

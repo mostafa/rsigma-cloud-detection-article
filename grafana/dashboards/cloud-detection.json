@@ -1,0 +1,152 @@
+{
+  "title": "RSigma Cloud Detection (CloudTrail)",
+  "uid": "rsigma-cloud-detection",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["rsigma", "sigma", "cloudtrail", "aws"],
+  "timezone": "browser",
+  "time": { "from": "now-24h", "to": "now" },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Mimir", "value": "Mimir" }
+      },
+      {
+        "name": "tactic",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "label_values(rsigma_detection_matches_by_rule_total, rule_title)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Events processed",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(rsigma_events_processed_total)",
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["last"] } }
+    },
+    {
+      "id": 2,
+      "title": "Detections fired",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(rsigma_detection_matches_total)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Correlations fired",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(rsigma_correlation_matches_total)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Rules loaded",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "expr": "rsigma_rules_loaded",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Pipeline latency (p50 / p99)",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(rsigma_pipeline_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(rsigma_pipeline_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Detection rate by ATT&CK tactic",
+      "description": "Aggregates detection-match rate by the first attack.taXXXX tag in the rule. Add panels manually for sub-tactics if needed.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (level) (rate(rsigma_detection_matches_by_rule_total[5m]))",
+          "legendFormat": "{{level}}",
+          "refId": "A"
+        }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "right" } }
+    },
+    {
+      "id": 11,
+      "title": "Top fires by rule",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "topk(15, sum by (rule_title) (rsigma_detection_matches_by_rule_total))",
+          "legendFormat": "{{rule_title}}",
+          "refId": "A"
+        }
+      ],
+      "options": { "orientation": "horizontal", "displayMode": "gradient" }
+    },
+    {
+      "id": 12,
+      "title": "Correlation alerts (per 5m)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum by (rule_title, correlation_type) (rate(rsigma_correlation_matches_by_rule_total[5m]))",
+          "legendFormat": "{{rule_title}} ({{correlation_type}})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Input queue depth",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "rsigma_input_queue_depth",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}
