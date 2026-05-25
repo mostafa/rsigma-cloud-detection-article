@@ -1,6 +1,6 @@
 # rsigma-cloud-detection-article
 
-Companion repo for [Cloud Detection at Scale on a Laptop](https://mostafa.dev/cloud-detection-at-scale-on-a-laptop): how RSigma streams 1.9 million CloudTrail events through a community IR playbook in 17 seconds.
+Companion repo for [Cloud Detection at Scale on a Laptop](https://mostafa.dev/cloud-detection-at-scale-on-a-laptop-e46540322856): how RSigma streams 1.9 million CloudTrail events through a community IR playbook in 17 seconds.
 
 ## What's in here
 
